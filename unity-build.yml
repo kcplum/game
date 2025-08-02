@@ -1,0 +1,116 @@
+name: Unity Multi-Platform Build & Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  tags:
+    - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/cache@v3
+      with:
+        path: ~/.cache/unity
+        key: unity-windows-cache
+    - uses: game-ci/unity-setup@v3
+      with:
+        unityVersion: 2022.3.0f1
+    - uses: game-ci/unity-builder@v3
+      with:
+        targetPlatform: StandaloneWindows64
+    - uses: actions/upload-artifact@v3
+      with:
+        name: Thronebound-Windows
+        path: build/StandaloneWindows64
+
+  build-webgl:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/cache@v3
+      with:
+        path: ~/.cache/unity
+        key: unity-webgl-cache
+    - uses: game-ci/unity-setup@v3
+      with:
+        unityVersion: 2022.3.0f1
+    - uses: game-ci/unity-builder@v3
+      with:
+        targetPlatform: WebGL
+    - uses: actions/upload-artifact@v3
+      with:
+        name: Thronebound-WebGL
+        path: build/WebGL
+
+  build-macos:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/cache@v3
+      with:
+        path: ~/.cache/unity
+        key: unity-macos-cache
+    - uses: game-ci/unity-setup@v3
+      with:
+        unityVersion: 2022.3.0f1
+    - uses: game-ci/unity-builder@v3
+      with:
+        targetPlatform: StandaloneOSX
+    - uses: actions/upload-artifact@v3
+      with:
+        name: Thronebound-macOS
+        path: build/StandaloneOSX
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-webgl, build-macos]
+    steps:
+    - name: Set Version
+      id: version
+      run: |
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          echo "VERSION=${{ github.ref_name }}" >> \$GITHUB_ENV
+          echo "IS_PRERELEASE=false" >> \$GITHUB_ENV
+        else
+          echo "VERSION=v1.0.0+build.\${{ github.run_number }}" >> \$GITHUB_ENV
+          echo "IS_PRERELEASE=true" >> \$GITHUB_ENV
+        fi
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: \${{ env.VERSION }}
+        name: \${{ env.VERSION }}
+        body: |
+          🚀 Thronebound Build
+          Version: \${{ env.VERSION }}
+          Commit: \${{ github.sha }}
+        prerelease: \${{ env.IS_PRERELEASE }}
+      env:
+        GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload Windows Build
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/StandaloneWindows64/*
+      env:
+        GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload WebGL Build
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/WebGL/*
+      env:
+        GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload macOS Build
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/StandaloneOSX/*
+      env:
+        GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}
